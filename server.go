@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+// Ports represents a port slice object
+type Ports struct {
+	PortNumber int    `json:"portNumber"`
+	Protocol   string `json:"protocol"`
+}
+
 // Server represents a server
 type Server struct {
 	ID                 string    `json:"id"`
@@ -26,6 +32,15 @@ type Server struct {
 	Version            string    `json:"version"`
 	Abuse              bool      `json:"abuse"`
 	DiskGB             int       `json:"diskGB"`
+	Protection         struct {
+		Enabled bool `json:"enabled"`
+		Proxy   struct {
+			IP     string  `json:"ip"`
+			Region string  `json:"region"`
+			Ports  []Ports `json:"ports"`
+			Target string  `json:"target"`
+		} `json:"proxy"`
+	} `json:"protection"`
 }
 
 // CreateServerOptions defines options for creating a new server
@@ -38,6 +53,12 @@ type CreateServerOptions struct {
 	SSHKeys     []string `json:"sshKeys"`
 	Password    string   `json:"password"`
 	InitScript  string   `json:"initscript"`
+}
+
+// RebuildOptions defines options for rebuilding a server
+type RebuildOptions struct {
+	ID          string `json:"hostImageID"`
+	Description string `json:"imageDescription"`
 }
 
 // ServerService manages server API actions
@@ -110,4 +131,111 @@ func (ss *ServerService) Destroy(id string) error {
 	}
 
 	return nil
+}
+
+// Rebuild server
+func (ss *ServerService) Rebuild(id string, opts *RebuildOptions) error {
+	b, err := json.Marshal(opts)
+	if err != nil {
+		return err
+	}
+	req, err := ss.client.NewRequest("POST", "/servers/"+id+"/rebuild", b)
+	if err != nil {
+		return err
+	}
+
+	if err := ss.client.DoRequest(req, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Resize server
+func (ss *ServerService) Resize(id string, size string) error {
+	b, err := json.Marshal(map[string]string{
+		"size": size,
+	})
+	if err != nil {
+		return err
+	}
+	req, err := ss.client.NewRequest("POST", "/servers/"+id+"/resize", b)
+	if err != nil {
+		return err
+	}
+
+	if err := ss.client.DoRequest(req, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Restart server
+func (ss *ServerService) Restart(id string) error {
+	req, err := ss.client.NewRequest("POST", "/servers/"+id+"/restart", nil)
+	if err != nil {
+		return err
+	}
+
+	if err := ss.client.DoRequest(req, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Protection is to enable/disable DDoS protection on a server
+func (ss *ServerService) Protection(id string, enabled bool) (*Server, error) {
+	opts := struct {
+		Enabled bool   `json:"enable"`
+		Region  string `json:"region"`
+	}{
+		Enabled: enabled,
+		Region: func() string {
+			if enabled {
+				return "bvm-lux"
+			}
+			return ""
+		}(),
+	}
+
+	b, err := json.Marshal(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := ss.client.NewRequest("POST", "/servers/"+id+"/protection", b)
+	if err != nil {
+		return nil, err
+	}
+
+	s := Server{}
+
+	if err := ss.client.DoRequest(req, &s); err != nil {
+		return nil, err
+	}
+
+	return &s, nil
+}
+
+// SetPorts sets the enabled ports on a server for DDoS protection (Needs Protection enabled)
+func (ss *ServerService) SetPorts(id string, ports *[]Ports) (*Server, error) {
+	b, err := json.Marshal(ports)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := ss.client.NewRequest("POST", "/servers/"+id+"/protection/ports", b)
+	if err != nil {
+		return nil, err
+	}
+
+	s := Server{}
+
+	if err := ss.client.DoRequest(req, &s); err != nil {
+		return nil, err
+	}
+
+	return &s, nil
 }
