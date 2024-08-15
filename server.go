@@ -133,6 +133,20 @@ func (ss *ServerService) Destroy(id string) error {
 	return nil
 }
 
+// Stop a server
+func (ss *ServerService) Stop(id string) error {
+	req, err := ss.client.NewRequest("POST", "/servers/"+id+"/stop", nil)
+	if err != nil {
+		return err
+	}
+
+	if err := ss.client.DoRequest(req, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Rebuild server
 func (ss *ServerService) Rebuild(id string, opts *RebuildOptions) error {
 	b, err := json.Marshal(opts)
